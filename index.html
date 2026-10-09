@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Weißer Fleck – Planung für Website-Aufträge</title>
+  <meta name="description" content="Internes Planungswerkzeug: Betriebe ohne Website auf der Karte finden, Aufträge mit Status verwalten und auf GitHub veröffentlichen.">
+  <meta name="robots" content="noindex">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23c93a1d'/%3E%3Cpath d='M9 11q3-5 9-3t6 7q1 5-3 8t-8 1q-5-2-5-7t1-6z' fill='%23fbf9f3'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+    <symbol id="i-star" viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.1 1 5.9L12 16.9l-5.2 2.8 1-5.9-4.3-4.1 5.9-.8z"/></symbol>
+    <symbol id="i-phone" viewBox="0 0 24 24"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 005 5L15 13l5 2v4a2 2 0 01-2 2A15 15 0 013 6a2 2 0 012-2z"/></symbol>
+    <symbol id="i-mail" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></symbol>
+    <symbol id="i-ext" viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 01-1 1H5a1 1 0 01-1-1V7a1 1 0 011-1h5"/></symbol>
+    <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 21s7-6.2 7-11.5A7 7 0 005 9.5C5 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/></symbol>
+    <symbol id="i-board" viewBox="0 0 24 24"><rect x="3" y="4" width="5" height="16" rx="1"/><rect x="10" y="4" width="5" height="10" rx="1"/><rect x="17" y="4" width="4" height="13" rx="1"/></symbol>
+    <symbol id="i-list" viewBox="0 0 24 24"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/></symbol>
+    <symbol id="i-down" viewBox="0 0 24 24"><path d="M12 4v11M7 11l5 5 5-5M5 20h14"/></symbol>
+    <symbol id="i-up" viewBox="0 0 24 24"><path d="M12 16V5M7 9l5-5 5 5M5 20h14"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 018 0v3"/></symbol>
+    <symbol id="i-github" viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></symbol>
+  </defs>
+</svg>
+
+<a class="skip" href="#main">Zum Inhalt springen</a>
+
+<header class="top">
+  <a class="brand" href="#karte" aria-label="Weißer Fleck – Startseite">
+    <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="#c93a1d"/><path d="M9 11q3-5 9-3t6 7q1 5-3 8t-8 1q-5-2-5-7t1-6z" fill="#fbf9f3"/></svg>
+    <span class="brand-name">Weißer <em>Fleck</em></span>
+  </a>
+
+  <nav class="tabs" aria-label="Bereiche">
+    <a href="#karte" data-nav="karte">Karte</a>
+    <a href="#auftraege" data-nav="auftraege">Aufträge <span class="badge" id="navOrderCount" hidden>0</span></a>
+  </nav>
+
+  <button type="button" class="gh-btn" id="ghBtn" aria-haspopup="dialog">
+    <svg class="ic ic-fill" aria-hidden="true"><use href="#i-github"/></svg>
+    <span class="gh-label" id="ghLabel">GitHub</span>
+    <span class="gh-dot" id="ghDot" aria-hidden="true"></span>
+  </button>
+</header>
+
+<main id="main">
+
+  <!-- ============ KARTE ============ -->
+  <section id="view-karte" class="view view-map" aria-label="Karte" hidden>
+    <aside class="panel" aria-label="Betriebe ohne Website">
+      <div class="panel-top">
+        <p class="eyebrow">Weiße Flecken finden</p>
+        <h1 class="panel-title">Betriebe <em>ohne</em> Website</h1>
+
+        <form id="geoForm" class="geo" role="search">
+          <label class="sr-only" for="geoInput">Ort oder Adresse</label>
+          <input id="geoInput" type="search" placeholder="Ort oder Adresse, z. B. Jena" autocomplete="off" enterkeyhint="search">
+          <button class="btn primary" type="submit">Suchen</button>
+        </form>
+
+        <div class="field-group">
+          <span class="eyebrow" id="catLabel">Branchen</span>
+          <div class="chips" id="catChips" role="group" aria-labelledby="catLabel"></div>
+        </div>
+
+        <label class="check"><input type="checkbox" id="noChains" checked> Ketten &amp; Filialisten ausblenden</label>
+
+        <button id="scanBtn" class="btn accent block" type="button">
+          <svg class="ic" aria-hidden="true"><use href="#i-search"/></svg>
+          <span id="scanLabel">Diesen Kartenausschnitt durchsuchen</span>
+        </button>
+        <p id="scanStatus" class="status" role="status" aria-live="polite"></p>
+        <details class="hint">
+          <summary>Wie verlässlich sind die Treffer?</summary>
+          <p>Quelle ist OpenStreetMap. Fehlt dort das Feld „website“, ist das nur ein Hinweis – manche Betriebe haben eine Seite, die nur noch niemand eingetragen hat. Vor dem Kontakt deshalb kurz auf <em>Prüfen</em> klicken.</p>
+        </details>
+      </div>
+
+      <div class="panel-list">
+        <div class="list-head">
+          <div class="seg" id="stateSeg" role="group" aria-label="Nach Status filtern"></div>
+          <span id="listCount" class="mono"></span>
+        </div>
+        <ul id="leadList" class="leads"></ul>
+      </div>
+    </aside>
+
+    <div class="map-wrap">
+      <div id="map" role="application" aria-label="Karte mit Betrieben ohne Website"></div>
+
+      <div class="map-empty" id="mapEmpty">
+        <p class="eyebrow">Noch keine Fundstellen</p>
+        <p>Such links einen Ort und lass den Ausschnitt scannen – jeder Betrieb ohne Website erscheint hier als roter Punkt.</p>
+      </div>
+
+      <div class="legend" aria-label="Legende">
+        <p class="legend-title">Legende</p>
+        <ul>
+          <li><i class="sw sw-neu"></i> Neu</li>
+          <li><i class="sw sw-vorgemerkt"></i> Vorgemerkt</li>
+          <li><i class="sw sw-kontaktiert"></i> Kontaktiert</li>
+          <li><i class="sw sw-order"></i> Auftrag <small>(Farbe = Status)</small></li>
+        </ul>
+        <label class="check small"><input type="checkbox" id="showOrders" checked> Aufträge zeigen</label>
+      </div>
+
+      <button id="addPlaceBtn" class="btn map-btn" type="button" aria-pressed="false">
+        <svg class="ic" aria-hidden="true"><use href="#i-plus"/></svg> Betrieb eintragen
+      </button>
+    </div>
+  </section>
+
+  <!-- ============ AUFTRÄGE ============ -->
+  <section id="view-auftraege" class="view view-orders" aria-label="Aufträge" hidden>
+    <div class="orders-head">
+      <div>
+        <p class="eyebrow">Auftragsplanung</p>
+        <h1 class="page-title">Aufträge <em>&amp; Status</em></h1>
+      </div>
+      <div class="orders-actions">
+        <button id="publishQuick" class="btn" type="button">
+          <svg class="ic ic-fill" aria-hidden="true"><use href="#i-github"/></svg> Auf GitHub veröffentlichen
+        </button>
+        <button id="newOrderBtn" class="btn primary" type="button">
+          <svg class="ic" aria-hidden="true"><use href="#i-plus"/></svg> Neuer Auftrag
+        </button>
+      </div>
+    </div>
+
+    <dl class="kpis" id="kpis"></dl>
+
+    <div class="orders-tools">
+      <label class="search">
+        <svg class="ic" aria-hidden="true"><use href="#i-search"/></svg>
+        <span class="sr-only">Aufträge durchsuchen</span>
+        <input id="orderSearch" type="search" placeholder="Firma, Person oder Notiz suchen">
+      </label>
+      <label class="check"><input type="checkbox" id="showCancelled"> Abgesagte zeigen</label>
+      <div class="seg" id="viewSeg" role="group" aria-label="Ansicht">
+        <button type="button" data-view="board" aria-pressed="true"><svg class="ic" aria-hidden="true"><use href="#i-board"/></svg> Board</button>
+        <button type="button" data-view="list" aria-pressed="false"><svg class="ic" aria-hidden="true"><use href="#i-list"/></svg> Liste</button>
+      </div>
+    </div>
+
+    <div id="ordersBody" class="orders-body"></div>
+  </section>
+</main>
+
+<!-- ============ DIALOG: AUFTRAG ============ -->
+<dialog id="orderDlg" aria-labelledby="orderDlgTitle">
+  <form id="orderForm" novalidate>
+    <header class="dlg-head">
+      <h2 id="orderDlgTitle">Neuer Auftrag</h2>
+      <button type="button" class="icon-btn" data-close aria-label="Schließen"><svg class="ic" aria-hidden="true"><use href="#i-x"/></svg></button>
+    </header>
+    <div class="dlg-body">
+      <div class="grid">
+        <label class="f span2"><span class="lbl">Firma / Betrieb <span class="req" aria-hidden="true">*</span></span>
+          <input name="company" required autocomplete="off">
+          <small class="err" id="companyErr" hidden>Bitte einen Namen eintragen.</small>
+        </label>
+        <label class="f">Ansprechperson<input name="contact" autocomplete="off"></label>
+        <label class="f">Telefon<input name="phone" type="tel" autocomplete="off"></label>
+        <label class="f">E-Mail<input name="email" type="email" autocomplete="off"></label>
+        <label class="f">Ort / Adresse<input name="address" autocomplete="off"></label>
+        <label class="f">Leistung<select name="service"></select></label>
+        <label class="f">Preis (€)<input name="price" type="number" min="0" step="10" inputmode="decimal" placeholder="0"></label>
+        <label class="f">Status<select name="status"></select></label>
+        <label class="f">Deadline<input name="deadline" type="date"></label>
+        <label class="f check span2" id="paidRow"><input type="checkbox" name="paid"> Rechnung bezahlt</label>
+        <label class="f span2">Notizen<textarea name="notes" rows="4" placeholder="Wünsche, Farben, Domain, Vereinbarungen …"></textarea></label>
+      </div>
+      <p class="loc-note" id="orderLoc" hidden></p>
+      <div id="orderHistoryWrap" hidden>
+        <p class="eyebrow">Verlauf</p>
+        <ol class="history" id="orderHistory"></ol>
+      </div>
+    </div>
+    <footer class="dlg-foot">
+      <button type="button" class="btn danger" id="orderDelete" hidden><svg class="ic" aria-hidden="true"><use href="#i-trash"/></svg> Löschen</button>
+      <span class="grow"></span>
+      <button type="button" class="btn" data-close>Abbrechen</button>
+      <button type="submit" class="btn primary">Speichern</button>
+    </footer>
+  </form>
+</dialog>
+
+<!-- ============ DIALOG: BETRIEB MANUELL ============ -->
+<dialog id="placeDlg" aria-labelledby="placeDlgTitle">
+  <form id="placeForm" novalidate>
+    <header class="dlg-head">
+      <h2 id="placeDlgTitle">Betrieb eintragen</h2>
+      <button type="button" class="icon-btn" data-close aria-label="Schließen"><svg class="ic" aria-hidden="true"><use href="#i-x"/></svg></button>
+    </header>
+    <div class="dlg-body">
+      <div class="grid">
+        <label class="f span2"><span class="lbl">Name <span class="req" aria-hidden="true">*</span></span>
+          <input name="name" required autocomplete="off">
+          <small class="err" id="placeErr" hidden>Bitte einen Namen eintragen.</small>
+        </label>
+        <label class="f">Branche<input name="sub" placeholder="z. B. Friseur" autocomplete="off"></label>
+        <label class="f">Telefon<input name="phone" type="tel" autocomplete="off"></label>
+        <label class="f span2">Adresse<input name="addr" autocomplete="off"></label>
+      </div>
+      <p class="loc-note" id="placeLoc"></p>
+    </div>
+    <footer class="dlg-foot">
+      <span class="grow"></span>
+      <button type="button" class="btn" data-close>Abbrechen</button>
+      <button type="submit" class="btn primary">Eintragen</button>
+    </footer>
+  </form>
+</dialog>
+
+<!-- ============ DIALOG: GITHUB ============ -->
+<dialog id="ghDlg" aria-labelledby="ghDlgTitle">
+  <form id="ghForm" novalidate autocomplete="off">
+    <header class="dlg-head">
+      <h2 id="ghDlgTitle">Auf GitHub veröffentlichen</h2>
+      <button type="button" class="icon-btn" data-close aria-label="Schließen"><svg class="ic" aria-hidden="true"><use href="#i-x"/></svg></button>
+    </header>
+    <div class="dlg-body">
+      <p class="lead-text">Deine Aufträge werden als <code>auftraege.json</code> (und auf Wunsch als lesbare <code>AUFTRAEGE.md</code>) in ein GitHub-Repository geschrieben. Das Token bleibt in deinem Browser und geht nur an <code>api.github.com</code>.</p>
+
+      <div class="notice" role="note">
+        <svg class="ic" aria-hidden="true"><use href="#i-lock"/></svg>
+        <p><strong>Nimm ein privates Repository.</strong> Die JSON-Datei enthält Kundennamen, Telefonnummern und Preise. Bei einem öffentlichen Repo fragt die App vor dem Veröffentlichen nach.</p>
+      </div>
+
+      <div class="grid">
+        <label class="f span2"><span class="lbl">Repository <span class="req" aria-hidden="true">*</span></span>
+          <input name="repo" placeholder="dein-name/website-auftraege" spellcheck="false" autocapitalize="off">
+        </label>
+        <label class="f"><span class="lbl">Branch <small>(leer = Standard)</small></span>
+          <input name="branch" placeholder="main" spellcheck="false" autocapitalize="off">
+        </label>
+        <label class="f">Ordner
+          <input name="dir" placeholder="data" spellcheck="false" autocapitalize="off">
+        </label>
+        <label class="f span2"><span class="lbl">Personal Access Token <span class="req" aria-hidden="true">*</span></span>
+          <input name="token" type="password" placeholder="github_pat_…" spellcheck="false" autocapitalize="off" autocomplete="new-password">
+          <small>Fine-grained Token nur für dieses Repo, Berechtigung <em>Contents: Read and write</em>.
+            <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener noreferrer">Token erstellen ↗</a></small>
+        </label>
+        <label class="f check span2"><input type="checkbox" name="remember"> Token auf diesem Gerät merken <small>(sonst nur bis zum Schließen des Tabs)</small></label>
+        <label class="f check span2"><input type="checkbox" name="markdown" checked> Lesbare Übersicht <code>AUFTRAEGE.md</code> mitveröffentlichen <small>(ohne Kontaktdaten)</small></label>
+      </div>
+
+      <div class="gh-log" id="ghLog" role="status" aria-live="polite"></div>
+
+      <details class="backup">
+        <summary>Lokale Sicherung &amp; Datei-Import</summary>
+        <div class="backup-row">
+          <button type="button" class="btn" id="exportBtn"><svg class="ic" aria-hidden="true"><use href="#i-down"/></svg> Als JSON-Datei sichern</button>
+          <button type="button" class="btn" id="importBtn"><svg class="ic" aria-hidden="true"><use href="#i-up"/></svg> JSON-Datei einlesen</button>
+          <input type="file" id="importFile" accept="application/json,.json" hidden>
+        </div>
+      </details>
+    </div>
+    <footer class="dlg-foot">
+      <button type="button" class="btn" id="ghTest">Verbindung testen</button>
+      <button type="button" class="btn" id="ghPull"><svg class="ic" aria-hidden="true"><use href="#i-down"/></svg> Von GitHub laden</button>
+      <span class="grow"></span>
+      <button type="button" class="btn" data-close>Schließen</button>
+      <button type="submit" class="btn primary" id="ghPublish"><svg class="ic ic-fill" aria-hidden="true"><use href="#i-github"/></svg> Veröffentlichen</button>
+    </footer>
+  </form>
+</dialog>
+
+<!-- ============ DIALOG: BESTÄTIGEN ============ -->
+<dialog id="confirmDlg" class="small" aria-labelledby="confirmTitle" aria-describedby="confirmText">
+  <form method="dialog">
+    <div class="dlg-body">
+      <h2 id="confirmTitle">Bist du sicher?</h2>
+      <p id="confirmText"></p>
+    </div>
+    <footer class="dlg-foot">
+      <span class="grow"></span>
+      <button type="submit" class="btn" value="cancel" id="confirmCancel">Abbrechen</button>
+      <button type="submit" class="btn primary" value="ok" id="confirmOk">OK</button>
+    </footer>
+  </form>
+</dialog>
+
+<div id="toasts" class="toasts" role="status" aria-live="polite"></div>
+
+<script src="vendor/leaflet/leaflet.js"></script>
+<script src="js/store.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/map.js"></script>
+<script src="js/orders.js"></script>
+<script src="js/github.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
