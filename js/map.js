@@ -50,10 +50,11 @@
   }
 
   /* ---------- Konfiguration ---------- */
+  /* Nur Server, die aus dem Browser erreichbar sind (CORS) und die ganze Welt abdecken – getestet 2026-10-09.
+     kumi.systems / private.coffee antworteten nicht, overpass.osm.ch deckt nur die Schweiz ab. */
   const OVERPASS = [
-    'https://overpass-api.de/api/interpreter',
-    'https://overpass.kumi.systems/api/interpreter',
-    'https://overpass.private.coffee/api/interpreter'
+    'https://overpass.openstreetmap.fr/api/interpreter',
+    'https://overpass-api.de/api/interpreter'
   ];
   const RESULT_LIMIT = 500;
   const MAX_AREA_KM2 = 80;
