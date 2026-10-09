@@ -75,15 +75,26 @@
         </div>
 
         <label class="check"><input type="checkbox" id="noChains" checked> Ketten &amp; Filialisten ausblenden</label>
+        <label class="check"><input type="checkbox" id="showSites"> Auch Betriebe mit vermuteter Website zeigen <span class="mono" id="siteCount"></span></label>
 
         <button id="scanBtn" class="btn accent block" type="button">
           <svg class="ic" aria-hidden="true"><use href="#i-search"/></svg>
           <span id="scanLabel">Diesen Kartenausschnitt durchsuchen</span>
         </button>
-        <p id="scanStatus" class="status" role="status" aria-live="polite"></p>
+        <details class="hint gbox" id="gBox">
+          <summary>Genauer prüfen mit Google <span class="tag">optional</span></summary>
+          <p>Liest die Website aus dem Google-Maps-Eintrag der Betriebe – deutlich zuverlässiger als OpenStreetMap. Du brauchst einen eigenen <a href="https://developers.google.com/maps/documentation/places/web-service/get-api-key" target="_blank" rel="noopener noreferrer">API-Schlüssel</a> mit aktivierter „Places API (New)“. Google rechnet die Anfragen über dein Konto ab (üblich ist ein kleines kostenloses Monatskontingent – aktuelle Preise prüfen und ein Budget-Limit setzen). Der Schlüssel bleibt in deinem Browser und geht nur an Google.</p>
+          <label class="f">API-Schlüssel <input id="gKey" type="password" autocomplete="new-password" spellcheck="false" autocapitalize="off" placeholder="AIza…"></label>
+          <label class="check small"><input type="checkbox" id="gRemember"> Schlüssel auf diesem Gerät merken</label>
+          <button id="gRun" class="btn block" type="button" disabled>Erst API-Schlüssel eintragen</button>
+        </details>
+        <div class="status-row">
+          <p id="scanStatus" class="status" role="status" aria-live="polite"></p>
+          <button id="checkCancel" class="mini" type="button" hidden>Abbrechen</button>
+        </div>
         <details class="hint">
           <summary>Wie verlässlich sind die Treffer?</summary>
-          <p>Quelle ist OpenStreetMap. Fehlt dort das Feld „website“, ist das nur ein Hinweis – manche Betriebe haben eine Seite, die nur noch niemand eingetragen hat. Vor dem Kontakt deshalb kurz auf <em>Prüfen</em> klicken.</p>
+          <p>Quelle ist OpenStreetMap – dort fehlt bei vielen Betrieben nur der Eintrag der Website. Deshalb prüft die Seite nach jedem Scan automatisch: eigene Mail-Domain, weitere Website-Tags und ob eine Domain mit dem Betriebsnamen existiert. Wer so auffällt, wird aussortiert (einblendbar). Eine Garantie ist das nicht – vor dem Kontakt kurz auf <em>Prüfen</em> klicken.</p>
         </details>
       </div>
 
@@ -110,6 +121,7 @@
           <li><i class="sw sw-neu"></i> Neu</li>
           <li><i class="sw sw-vorgemerkt"></i> Vorgemerkt</li>
           <li><i class="sw sw-kontaktiert"></i> Kontaktiert</li>
+          <li><i class="sw sw-verified"></i> Google: keine Website</li>
           <li><i class="sw sw-order"></i> Auftrag <small>(Farbe = Status)</small></li>
         </ul>
         <label class="check small"><input type="checkbox" id="showOrders" checked> Aufträge zeigen</label>
@@ -298,6 +310,8 @@
 <script src="vendor/leaflet/leaflet.js"></script>
 <script src="js/store.js"></script>
 <script src="js/ui.js"></script>
+<script src="js/sitecheck.js"></script>
+<script src="js/places.js"></script>
 <script src="js/map.js"></script>
 <script src="js/orders.js"></script>
 <script src="js/github.js"></script>

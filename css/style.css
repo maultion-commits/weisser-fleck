@@ -208,6 +208,7 @@ input[type="checkbox"] { width: 1.05rem; height: 1.05rem; accent-color: var(--ac
 .dot-kontaktiert { background: var(--info); }
 .dot-verworfen { background: #a3a39b; }
 .dot-auftrag { background: #2f7d5b; }
+.dot-website { background: #d9d4c4; box-shadow: 0 0 0 1.5px #7b8588 inset; }
 
 /* ==========================================================
    KARTE
@@ -229,13 +230,20 @@ input[type="checkbox"] { width: 1.05rem; height: 1.05rem; accent-color: var(--ac
 .panel-title em { color: var(--accent); font-weight: 500; }
 .geo { display: flex; gap: 0.5rem; }
 .geo input { flex: 1; min-width: 0; }
-.status { min-height: 1.3em; font-size: 0.84rem; color: var(--ink-2); margin-top: -0.2rem; }
+.status-row { display: flex; align-items: flex-start; gap: 0.6rem; margin-top: -0.2rem; }
+.status-row .mini { flex: none; margin-top: -0.2rem; }
+.status { flex: 1; min-height: 1.3em; font-size: 0.84rem; color: var(--ink-2); }
 .status-ok { color: var(--ok); font-weight: 600; }
 .status-warn { color: var(--warn); }
 .status-bad { color: var(--bad); font-weight: 600; }
 .hint { font-size: 0.78rem; line-height: 1.4; color: var(--ink-3); }
 .hint summary { cursor: pointer; font-weight: 600; width: fit-content; }
 .hint p { margin-top: 0.4rem; }
+.gbox { border-top: 1px dashed var(--line-2); padding-top: 0.6rem; }
+.gbox summary .tag { margin-left: 0.3rem; }
+.gbox .f { margin-top: 0.6rem; }
+.gbox .check { margin: 0.5rem 0; }
+.gbox a { color: var(--accent); }
 
 .panel-list { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .list-head {
@@ -263,6 +271,13 @@ input[type="checkbox"] { width: 1.05rem; height: 1.05rem; accent-color: var(--ac
 .lead-contact:empty { display: none; }
 .lead-contact a { display: inline-flex; align-items: center; gap: 0.3rem; color: var(--ink-2); text-decoration: none; overflow-wrap: anywhere; }
 .lead-contact a:hover { color: var(--accent); text-decoration: underline; }
+.lead-site { display: flex; align-items: center; flex-wrap: wrap; gap: 0.25rem; margin-top: 0.4rem; padding: 0.3rem 0.5rem; border-radius: 6px; background: var(--paper-2); font-size: 0.8rem; color: var(--ink-2); }
+.lead-site a { color: var(--accent); font-weight: 600; overflow-wrap: anywhere; }
+.lead-site .how { color: var(--ink-3); }
+.lead-site.ok { background: #e3f0e9; color: var(--ok); }
+.lead-site.gold { background: #fdf0c9; color: #6b4a00; }
+.lead[data-state="website"] { border-left-color: #c9c3ae; background: #f6f3ea; }
+.lead[data-state="website"] .lead-title strong { color: var(--ink-2); }
 .lead-actions { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.6rem; }
 .list-empty { color: var(--ink-3); font-size: 0.9rem; padding: 1rem 0.2rem; }
 .list-more { text-align: center; padding: 0.4rem 0 1rem; }
@@ -295,6 +310,7 @@ input[type="checkbox"] { width: 1.05rem; height: 1.05rem; accent-color: var(--ac
 .sw-neu { background: #d9482b; }
 .sw-vorgemerkt { background: #e3a31b; box-shadow: 0 0 0 1.5px var(--ink); }
 .sw-kontaktiert { background: #2f6f8f; }
+.sw-verified { background: #d9482b; border-color: #2f7d5b; border-width: 2.5px; }
 .sw-order { background: #2f7d5b; border-radius: 3px; transform: rotate(45deg) scale(0.85); }
 .legend .check { margin-top: 0.35rem; padding-top: 0.4rem; border-top: 1px solid var(--line); }
 

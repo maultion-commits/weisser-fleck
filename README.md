@@ -35,7 +35,21 @@ Alles liegt im `localStorage` des Browsers (Schlüssel `wf.*`). Über **GitHub �
 ## Datenquellen & Hinweise
 
 - Betriebsdaten: © OpenStreetMap-Mitwirkende (ODbL) via Overpass API; Ortssuche via Nominatim; Kartenkacheln von tile.openstreetmap.org. Für leichte, interaktive Nutzung gedacht – bitte nicht automatisiert in Masse abfragen.
-- „Keine Website“ heißt nur: In OSM fehlt das Feld. Vor dem Kontakt per **Prüfen** (Websuche) gegenprüfen. Ketten/Filialisten lassen sich ausblenden.
+- „Keine Website“ heißt zunächst nur: In OSM fehlt das Feld – bei vielen Betrieben ist es schlicht nicht gepflegt. Deshalb gibt es mehrere Prüfstufen (siehe unten). Vor dem Kontakt immer kurz auf **Prüfen** klicken (öffnet den Google-Maps-Eintrag mit Website, Telefon, Öffnungszeiten).
+
+## Wie genau ist die Suche?
+
+Automatisch nach jedem Scan, ohne Schlüssel:
+
+1. OSM-Tags: `website`, `url`, `contact:*`, `wikidata`, Marken/Ketten → ausgeblendet; gleicher Name ≥ 3× im Ausschnitt gilt als Kette.
+2. E-Mail auf eigener Domain (`info@haarscharf.de`) → Betrieb hat sehr wahrscheinlich eine Seite.
+3. Existiert eine Domain mit **Betriebsname + Ort** (`vinothek-jena.de`)? Geprüft per `HEAD`-Anfrage im Browser (nur „antwortet / antwortet nicht“, kein Inhalt). Reine Namensdomains (`mein-salon.de`) werden bewusst nicht gewertet – in Stichproben gehörten sie fast nie dem Betrieb vor Ort.
+
+Aussortierte Betriebe bleiben sichtbar („Auch Betriebe mit vermuteter Website zeigen“) und lassen sich mit **Doch keine Website** zurückholen. In einer Stichprobe in Jena stimmten rund drei von vier Ortsdomain-Treffern; Fehlalarme sind Parkseiten und Lieferdienst-Weiterleitungen. Betriebe mit einer *anders benannten* Domain erkennt dieser Weg nicht.
+
+Optional und deutlich genauer – **Google-Prüfung** (Button im Panel): liest die Website aus dem Google-Maps-Eintrag über die *Places API (New)*. Du brauchst einen eigenen API-Schlüssel; Google rechnet über dein Konto ab (aktuelle Preise prüfen, Budget-Limit setzen). Läuft nur auf Knopfdruck (max. 100 Betriebe pro Klick, mit Bestätigung). Ergebnis je Betrieb: hat Website → aussortiert, Eintrag ohne Website → „bestätigter Lead“ (goldener Hinweis, grüner Ring auf der Karte, steht oben), dauerhaft geschlossen → verworfen. Facebook/Instagram/Lieferdienste zählen nicht als eigene Website.
+
+Datenschutz: Für Prüfung 3 sendet dein Browser einfache Anfragen an die geratenen Domains (ohne Cookies/Referrer). Für die Google-Prüfung gehen Betriebsname und Adresse an Google.
 - Kaltakquise per E-Mail/Telefon ist in Deutschland rechtlich eingeschränkt (UWG §7). Telefonnummern in OSM sind kein Freibrief.
 - Leaflet 1.9.4 liegt unter `vendor/leaflet` (BSD-2-Clause).
 
@@ -47,6 +61,8 @@ Alles liegt im `localStorage` des Browsers (Schlüssel `wf.*`). Über **GitHub �
 | `css/style.css` | Design (Atlas-/Feldbuch-Look) |
 | `js/store.js` | Zustand, Datenmodell, Persistenz, Zusammenführen |
 | `js/map.js` | Karte, Overpass-Suche, Fundstellen-Liste |
+| `js/sitecheck.js` | Website-Hinweise: Tags, Mail-Domain, Ortsdomain-Probe |
+| `js/places.js` | optionale Google-Places-Prüfung (eigener API-Schlüssel) |
 | `js/orders.js` | Board, Liste, Auftrags-Dialog |
 | `js/github.js` | Veröffentlichen / Laden über die GitHub-Contents-API |
 | `js/app.js` | Start & Routing (`#karte`, `#auftraege`) |

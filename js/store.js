@@ -23,7 +23,9 @@
     'Wartung & Hosting',
     'Sonstiges'
   ];
-  const LEAD_STATES = ['neu', 'vorgemerkt', 'kontaktiert', 'verworfen', 'auftrag'];
+  const LEAD_STATES = ['neu', 'vorgemerkt', 'kontaktiert', 'verworfen', 'auftrag', 'website'];
+  /* „neu“ und „website“ sind automatisch entstanden und werden nicht gesichert/veröffentlicht */
+  const isAuto = st => st === 'neu' || st === 'website';
   const LEAD_CAP = 3000;
 
   const KEY = {
@@ -34,7 +36,8 @@
     pub: 'wf.gh.published.v1',
     mapView: 'wf.map.view.v1',
     mapPrefs: 'wf.map.prefs.v1',
-    ordersPrefs: 'wf.orders.prefs.v1'
+    ordersPrefs: 'wf.orders.prefs.v1',
+    gkey: 'wf.google.key'
   };
 
   /* ---------- Storage-Helfer (können im Privatmodus werfen) ---------- */
@@ -121,7 +124,13 @@
       src: l.src === 'manuell' ? 'manuell' : 'osm',
       seen: iso(l.seen),
       state: LEAD_STATES.includes(l.state) ? l.state : 'neu',
-      stateAt: l.stateAt ? iso(l.stateAt) : ''
+      stateAt: l.stateAt ? iso(l.stateAt) : '',
+      siteUrl: str(l.siteUrl),
+      siteHow: str(l.siteHow),
+      siteFull: str(l.siteFull),
+      checked: l.checked ? iso(l.checked) : '',
+      gcheck: ['website', 'keine', 'nicht gefunden', 'geschlossen'].includes(l.gcheck) ? l.gcheck : '',
+      confirmed: !!l.confirmed
     };
   }
 
@@ -149,13 +158,13 @@
     let arr = Object.values(state.leads);
     if (arr.length > LEAD_CAP) {
       // erst unbearbeitete, älteste Fundstellen verwerfen
-      arr.sort((a, b) => (a.state === 'neu') - (b.state === 'neu') || (a.seen < b.seen ? 1 : -1));
+      arr.sort((a, b) => isAuto(a.state) - isAuto(b.state) || (a.seen < b.seen ? 1 : -1));
       arr = arr.slice(0, LEAD_CAP);
       state.leads = {};
       arr.forEach(l => { state.leads[l.id] = l; });
     }
     if (!writeJSON(KEY.leads, arr)) {
-      const keep = arr.filter(l => l.state !== 'neu');
+      const keep = arr.filter(l => !isAuto(l.state));
       if (!writeJSON(KEY.leads, keep)) quotaWarn();
     }
   }
@@ -213,6 +222,10 @@
       if (old) {
         l.state = old.state;
         l.stateAt = old.stateAt;
+        l.checked = old.checked;
+        l.gcheck = old.gcheck;
+        l.confirmed = old.confirmed;
+        if (old.siteUrl) { l.siteUrl = old.siteUrl; l.siteHow = old.siteHow; l.siteFull = old.siteFull; }
       } else {
         added++;
       }
@@ -221,6 +234,17 @@
     saveLeads();
     emit('leads', { added });
     return added;
+  }
+
+  /* Stapel-Änderungen (z. B. Website-Prüfung): erst patchen, dann einmal speichern */
+  function patchLead(id, patch) {
+    const l = state.leads[id];
+    if (!l) return;
+    Object.assign(l, patch);
+  }
+  function commitLeads(opts) {
+    saveLeads();
+    if (!opts || opts.emit !== false) emit('leads', { checked: true });
   }
 
   function setLeadState(id, newState, silent) {
@@ -236,10 +260,18 @@
   function snapshot() {
     const orders = state.orders.map(normOrder).sort((a, b) => (a.id < b.id ? -1 : 1));
     const leads = Object.values(state.leads)
-      .filter(l => l.state !== 'neu')
+      .filter(l => !isAuto(l.state))
       .map(normLead)
+      .map(slimLead)
       .sort((a, b) => (a.id < b.id ? -1 : 1));
     return { orders, leads };
+  }
+
+  /* Prüfdaten gehören nicht in die Sicherung – nur das, was der Nutzer entschieden hat */
+  function slimLead(l) {
+    const c = Object.assign({}, l);
+    delete c.siteUrl; delete c.siteHow; delete c.siteFull; delete c.checked; delete c.gcheck; delete c.confirmed;
+    return c;
   }
 
   function fnv(s) {
@@ -251,8 +283,9 @@
   function payloadHash(p) {
     const orders = (Array.isArray(p.orders) ? p.orders : []).map(normOrder).sort((a, b) => (a.id < b.id ? -1 : 1));
     const leads = (Array.isArray(p.leads) ? p.leads : []).map(normLead)
-      .filter(l => l.id && l.state !== 'neu')
-      .map(l => { const c = Object.assign({}, l); delete c.seen; return c; })
+      .filter(l => l.id && !isAuto(l.state))
+      .map(slimLead)
+      .map(l => { delete l.seen; return l; })
       .sort((a, b) => (a.id < b.id ? -1 : 1));
     return fnv(JSON.stringify({ orders, leads }));
   }
@@ -285,7 +318,7 @@
     (Array.isArray(payload.leads) ? payload.leads : []).forEach(raw => {
       if (!raw || typeof raw !== 'object') return;
       const r = normLead(raw);
-      if (!r.id || !Number.isFinite(r.lat) || !Number.isFinite(r.lng)) return;
+      if (!r.id || !Number.isFinite(r.lat) || !Number.isFinite(r.lng) || isAuto(r.state)) return;
       const old = state.leads[r.id];
       if (!old) { state.leads[r.id] = r; res.leadsAdded++; }
       else if (r.stateAt && r.stateAt > (old.stateAt || '')) { state.leads[r.id] = Object.assign({}, old, { state: r.state, stateAt: r.stateAt }); res.leadsUpdated++; }
@@ -319,6 +352,15 @@
     if (!token) return;
     if (remember) ls.set(KEY.token, token); else ss.set(KEY.token, token);
   }
+  /* Google-Places-Schlüssel (optional): wie das GitHub-Token nur im Browser */
+  function getGoogleKey() { return ss.get(KEY.gkey) || ls.get(KEY.gkey) || ''; }
+  function setGoogleKey(key, remember) {
+    ss.del(KEY.gkey); ls.del(KEY.gkey);
+    key = str(key);
+    if (!key) return;
+    if (remember) ls.set(KEY.gkey, key); else ss.set(KEY.gkey, key);
+  }
+  const googleKeyRemembered = () => !!ls.get(KEY.gkey);
   function getPublished() { return readJSON(KEY.pub, null); }
   function setPublished(p) { if (p) writeJSON(KEY.pub, p); else ls.del(KEY.pub); emit('gh'); }
 
@@ -339,9 +381,9 @@
     get leads() { return state.leads; },
     on, emit,
     getOrder, addOrder, updateOrder, removeOrder,
-    upsertLeads, setLeadState,
+    upsertLeads, setLeadState, patchLead, commitLeads,
     snapshot, snapshotHash, payloadHash, exportPayload, mergePayload, normOrder,
-    getGh, setGh, getToken, setToken, getPublished, setPublished,
+    getGh, setGh, getToken, setToken, getGoogleKey, setGoogleKey, googleKeyRemembered, getPublished, setPublished,
     getPrefs, setPrefs,
     readJSON, writeJSON
   };

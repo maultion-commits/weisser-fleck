@@ -11,7 +11,7 @@
     { key: 'handel',      label: 'Einzelhandel',  filters: [['shop', null]] },
     { key: 'handwerk',    label: 'Handwerk',      filters: [['craft', null]] },
     { key: 'gesundheit',  label: 'Gesundheit',    filters: [['amenity', 'dentist|doctors|pharmacy|veterinary|clinic'], ['healthcare', null]] },
-    { key: 'dienst',      label: 'Dienstleister', filters: [['office', null]] },
+    { key: 'dienst',      label: 'Dienstleister', filters: [['office', 'lawyer|accountant|tax_advisor|estate_agent|insurance|architect|financial|financial_advisor|consulting|company|it|advertising_agency|employment_agency|travel_agent|therapist|notary|coworking|surveyor|engineer|logistics|interior_designer|photographer|web_design|energy_supplier']] },
     { key: 'unterkunft',  label: 'Unterkunft',    filters: [['tourism', 'hotel|guest_house|hostel|apartment|motel|camp_site']] },
     { key: 'freizeit',    label: 'Freizeit',      filters: [['leisure', 'fitness_centre|sports_centre|dance|bowling_alley|miniature_golf|escape_game']] }
   ];
@@ -70,15 +70,19 @@
     vorgemerkt:  { fillColor: '#e3a31b', color: '#16272c', weight: 2, radius: 8, fillOpacity: 1 },
     kontaktiert: { fillColor: '#2f6f8f', color: '#fff', weight: 1.5, radius: 7, fillOpacity: 0.95 },
     verworfen:   { fillColor: '#a3a39b', color: '#fff', weight: 1, radius: 5, fillOpacity: 0.8 },
-    auftrag:     { fillColor: '#2f7d5b', color: '#fff', weight: 1.5, radius: 6.5, fillOpacity: 0.9 }
+    auftrag:     { fillColor: '#2f7d5b', color: '#fff', weight: 1.5, radius: 6.5, fillOpacity: 0.9 },
+    verifiziert: { fillColor: '#d9482b', color: '#2f7d5b', weight: 3, radius: 7.5, fillOpacity: 0.95 },
+    website:     { fillColor: '#d9d4c4', color: '#7b8588', weight: 1.5, radius: 5, fillOpacity: 0.6 }
   };
-  const STATE_LABEL = { neu: 'Neu', vorgemerkt: 'Vorgemerkt', kontaktiert: 'Kontaktiert', verworfen: 'Verworfen', auftrag: 'Auftrag' };
+  const STATE_LABEL = { neu: 'Neu', vorgemerkt: 'Vorgemerkt', kontaktiert: 'Kontaktiert', verworfen: 'Verworfen', auftrag: 'Auftrag', website: 'Hat vermutlich eine Website' };
+  const CHECK_MAX = 600;
 
   const prefs = store.getPrefs(WF.KEY.mapPrefs, {
     cats: CATS.map(c => c.key),
     noChains: true,
     stateFilter: 'aktiv',
-    showOrders: true
+    showOrders: true,
+    showSites: false
   });
   if (!Array.isArray(prefs.cats)) prefs.cats = CATS.map(c => c.key);
   const savePrefs = () => store.setPrefs(WF.KEY.mapPrefs, prefs);
@@ -89,7 +93,12 @@
   const orderMarkers = new Map();
   let selectedId = null;
   let lastPlace = '';
+  let fallbackCity = '';
+  let gRunning = false;
+  let gCtrl = null;
   let scanning = false;
+  let scanLabelText = '';
+  let checkCtrl = null;
   let tooBig = false;
   let addMode = false;
   let pendingLatLng = null;
@@ -102,13 +111,14 @@
     return Math.abs(h * w);
   }
   const telHref = p => 'tel:' + String(p).replace(/[^\d+]/g, '');
-  const checkUrl = l => 'https://www.google.com/search?q=' + encodeURIComponent((l.name + ' ' + (l.city || '')).trim());
+  const checkUrl = l => 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent([l.name, l.addr || l.city].filter(Boolean).join(', '));
   const osmUrl = l => (l.osm ? 'https://www.openstreetmap.org/' + l.osm : '');
 
   function passesCat(l) { return l.cat === 'manuell' || prefs.cats.includes(l.cat); }
+  const statesOf = f => (f.key === 'aktiv' && prefs.showSites ? f.states.concat('website') : f.states);
   function passesState(l) {
     const f = STATE_FILTERS.find(s => s.key === prefs.stateFilter) || STATE_FILTERS[0];
-    return f.states.includes(l.state);
+    return statesOf(f).includes(l.state);
   }
   const passes = l => passesCat(l) && passesState(l);
 
@@ -122,7 +132,7 @@
   function buildQuery(bounds, cats, noChains) {
     const bb = [bounds.getSouth(), bounds.getWest(), bounds.getNorth(), bounds.getEast()].map(n => n.toFixed(5)).join(',');
     const base = '["name"][!"website"][!"contact:website"][!"url"][!"contact:url"][!"operator:website"]' +
-      (noChains ? '[!"brand"][!"brand:wikidata"]' : '');
+      (noChains ? '[!"brand"][!"brand:wikidata"][!"wikidata"][!"wikipedia"]' : '');
     const parts = [];
     cats.forEach(c => c.filters.forEach(([k, v]) => {
       let f = v ? `["${k}"~"^(${v})$"]` : `["${k}"]`;
@@ -134,28 +144,32 @@
 
   async function queryOverpass(q) {
     let lastErr = null;
-    for (const url of OVERPASS) {
-      const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), 40000);
-      try {
-        const res = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
-          body: 'data=' + encodeURIComponent(q),
-          signal: ctrl.signal
-        });
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        const json = await res.json();
-        const els = Array.isArray(json.elements) ? json.elements : [];
-        if (json.remark && /runtime error|timed out|out of memory/i.test(json.remark) && !els.length) throw new Error(json.remark);
-        return els;
-      } catch (e) {
-        lastErr = e;
-      } finally {
-        clearTimeout(timer);
+    // Zwei Runden über alle Server: der öffentliche Dienst drosselt bei Spitzen kurz (ohne CORS-Header → „Failed to fetch“)
+    for (let round = 0; round < 2; round++) {
+      if (round) await new Promise(r => setTimeout(r, 3000));
+      for (const url of OVERPASS) {
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 40000);
+        try {
+          const res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+            body: 'data=' + encodeURIComponent(q),
+            signal: ctrl.signal
+          });
+          if (!res.ok) throw new Error('HTTP ' + res.status);
+          const json = await res.json();
+          const els = Array.isArray(json.elements) ? json.elements : [];
+          if (json.remark && /runtime error|timed out|out of memory/i.test(json.remark) && !els.length) throw new Error(json.remark);
+          return els;
+        } catch (e) {
+          lastErr = e;
+        } finally {
+          clearTimeout(timer);
+        }
       }
     }
-    throw new Error('Overpass-Server nicht erreichbar oder überlastet – bitte gleich noch einmal versuchen (' + (lastErr && lastErr.message ? lastErr.message : 'unbekannt') + ').');
+    throw new Error('Overpass-Server nicht erreichbar oder überlastet – bitte in einer Minute noch einmal versuchen (' + (lastErr && lastErr.message ? lastErr.message : 'unbekannt') + ').');
   }
 
   function toLead(el) {
@@ -164,7 +178,9 @@
     const lat = el.lat != null ? el.lat : el.center && el.center.lat;
     const lng = el.lon != null ? el.lon : el.center && el.center.lon;
     if (lat == null || lng == null) return null;
+    if (WF.sitecheck.hasSiteTag(t)) return null; // irgendein Tag zeigt auf eine Website
     const [cat, sub] = classify(t);
+    const mailDomain = WF.sitecheck.emailDomain(t.email || t['contact:email']);
     const street = t['addr:street'] ? t['addr:street'] + (t['addr:housenumber'] ? ' ' + t['addr:housenumber'] : '') : '';
     const place = [t['addr:postcode'], t['addr:city']].filter(Boolean).join(' ');
     const social = [];
@@ -176,14 +192,21 @@
       name: t.name,
       cat, sub,
       addr: [street, place].filter(Boolean).join(', '),
-      city: t['addr:city'] || lastPlace,
+      city: t['addr:city'] || fallbackCity || lastPlace,
       phone: t.phone || t['contact:phone'] || t['contact:mobile'] || '',
       email: t.email || t['contact:email'] || '',
       social: social.join(', '),
       osm: el.type + '/' + el.id,
-      src: 'osm'
+      src: 'osm',
+      siteUrl: mailDomain,
+      siteHow: mailDomain ? 'E-Mail-Domain' : ''
     };
   }
+
+  const inView = () => {
+    const b = map.getBounds();
+    return Object.values(store.leads).filter(l => passesCat(l) && b.contains([l.lat, l.lng]));
+  };
 
   async function scan() {
     if (scanning || !map) return;
@@ -194,37 +217,103 @@
     const cats = CATS.filter(c => prefs.cats.includes(c.key));
     if (!cats.length) { setStatus('Wähle mindestens eine Branche aus.', 'warn'); return; }
 
-    setScanning(true);
+    setScanning(true, 'Suche läuft …');
     setStatus('Suche läuft … das dauert meist 3–10 Sekunden.');
     try {
       const els = await queryOverpass(buildQuery(map.getBounds(), cats, prefs.noChains));
-      const leads = els.map(toLead).filter(Boolean);
-      const before = Object.keys(store.leads).length;
+      // Ort für Betriebe ohne Adresse: die häufigste Ortsangabe in diesem Ausschnitt
+      const cityCount = {};
+      els.forEach(e => { const c = e.tags && e.tags['addr:city']; if (c) cityCount[c] = (cityCount[c] || 0) + 1; });
+      fallbackCity = Object.keys(cityCount).sort((a, b) => cityCount[b] - cityCount[a])[0] || '';
+
+      let leads = els.map(toLead).filter(Boolean);
+      const osmCount = leads.length;
+
+      // Ketten: derselbe Name taucht mehrfach auf (z. B. „Bäckerei Müller“ an fünf Standorten)
+      let chains = 0;
+      if (prefs.noChains) {
+        const freq = {};
+        leads.forEach(l => { const k = WF.sitecheck.nameKey(l.name); freq[k] = (freq[k] || 0) + 1; });
+        const kept = leads.filter(l => { const k = WF.sitecheck.nameKey(l.name); return !k || freq[k] < 3; });
+        chains = leads.length - kept.length;
+        leads = kept;
+      }
+
       store.upsertLeads(leads);
-      const added = Object.keys(store.leads).length - before;
-      if (!leads.length) {
+
+      // Eigene Mail-Domain → hat sehr wahrscheinlich eine Website
+      const now = new Date().toISOString();
+      let byMail = 0;
+      leads.forEach(l => {
+        const cur = store.leads[l.id];
+        if (cur && l.siteHow === 'E-Mail-Domain' && cur.state === 'neu' && !cur.confirmed) {
+          store.patchLead(l.id, { state: 'website', stateAt: now, siteUrl: l.siteUrl, siteHow: l.siteHow });
+          byMail++;
+        }
+      });
+      store.commitLeads();
+
+      if (!osmCount) {
         setStatus('Hier keine Treffer – in diesem Ausschnitt haben alle erfassten Betriebe eine Website (oder sind Ketten).', 'warn');
-      } else if (els.length >= RESULT_LIMIT) {
-        setStatus(`${leads.length} Treffer, davon ${added} neu. Limit erreicht – zoom näher heran, um nichts zu verpassen.`, 'warn');
+        return;
+      }
+
+      const res = await runCheck();
+      const v = inView();
+      const open = v.filter(l => ['neu', 'vorgemerkt', 'kontaktiert'].includes(l.state)).length;
+      const sites = v.filter(l => l.state === 'website').length;
+      const bits = [`${open} Betriebe ohne erkennbare Website`];
+      if (sites) bits.push(`${sites} mit Website aussortiert`);
+      if (chains) bits.push(`${chains} Ketten-Einträge ausgeblendet`);
+      if (res && res.aborted) bits.push('Prüfung abgebrochen');
+      if (els.length >= RESULT_LIMIT) {
+        setStatus(bits.join(' · ') + '. Limit erreicht – zoom näher heran, um nichts zu verpassen.', 'warn');
       } else {
-        setStatus(`${leads.length} Betriebe ohne Website gefunden, davon ${added} neu.`, 'ok');
+        setStatus(bits.join(' · ') + '.', res && res.aborted ? 'warn' : 'ok');
       }
     } catch (e) {
       setStatus(e.message, 'bad');
     } finally {
+      checkCtrl = null;
+      $('#checkCancel').hidden = true;
       setScanning(false);
     }
   }
 
-  function setScanning(on) {
+  /* Website-Prüfung für alle ungeprüften Treffer im Ausschnitt (nächste zuerst) */
+  async function runCheck() {
+    const c = map.getCenter();
+    const ids = inView()
+      .filter(l => l.state === 'neu' && !l.checked && !l.confirmed)
+      .map(l => ({ id: l.id, d: distance(c.lat, c.lng, l.lat, l.lng) }))
+      .sort((a, b) => a.d - b.d)
+      .slice(0, CHECK_MAX)
+      .map(x => x.id);
+    if (!ids.length) return null;
+
+    checkCtrl = new AbortController();
+    $('#checkCancel').hidden = false;
+    setScanning(true, 'Prüfe Websites …');
+    const res = await WF.sitecheck.run(ids, {
+      signal: checkCtrl.signal,
+      onTick: (done, total, found, saved) => {
+        setStatus(`Prüfe, ob die Betriebe schon eine Website haben … ${done} von ${total} · ${found} bereits mit Seite`);
+        if (saved) { refreshMarkers(); renderList(); }
+      }
+    });
+    return res;
+  }
+
+  function setScanning(on, label) {
     scanning = on;
+    scanLabelText = label || '';
     updateScanBtn();
   }
   function updateScanBtn() {
     const btn = $('#scanBtn'), label = $('#scanLabel');
     btn.disabled = scanning || tooBig;
     btn.classList.toggle('busy', scanning);
-    label.textContent = scanning ? 'Suche läuft …' : tooBig ? 'Näher heranzoomen, um zu suchen' : 'Diesen Kartenausschnitt durchsuchen';
+    label.textContent = scanning ? (scanLabelText || 'Suche läuft …') : tooBig ? 'Näher heranzoomen, um zu suchen' : 'Diesen Kartenausschnitt durchsuchen';
   }
 
   /* ---------- Geocoding (Nominatim) ---------- */
@@ -259,7 +348,10 @@
   }
 
   /* ---------- Marker ---------- */
-  function markerStyle(l) { return STATE_STYLE[l.state] || STATE_STYLE.neu; }
+  function markerStyle(l) {
+    if (l.state === 'neu' && l.gcheck === 'keine') return STATE_STYLE.verifiziert;
+    return STATE_STYLE[l.state] || STATE_STYLE.neu;
+  }
 
   function refreshMarkers() {
     if (!map) return;
@@ -348,10 +440,27 @@
     return bits.join('');
   }
 
+  const siteHref = l => (l.siteFull && /^https?:\/\//i.test(l.siteFull) ? l.siteFull : 'https://' + l.siteUrl);
+  function siteInfoHtml(l) {
+    if (l.siteUrl) {
+      return `<div class="lead-site"><svg class="ic" aria-hidden="true"><use href="#i-ext"/></svg>Hat eine Seite: <a href="${esc(siteHref(l))}" target="_blank" rel="noopener noreferrer">${esc(l.siteUrl)}</a> <span class="how">(${esc(l.siteHow)})</span></div>`;
+    }
+    if (l.gcheck === 'keine') return `<div class="lead-site gold"><svg class="ic" aria-hidden="true"><use href="#i-check"/></svg>Google: im Eintrag keine Website – bestätigter Lead</div>`;
+    if (l.gcheck === 'geschlossen') return `<div class="lead-site"><svg class="ic" aria-hidden="true"><use href="#i-x"/></svg>Google: dauerhaft geschlossen</div>`;
+    if (l.gcheck === 'nicht gefunden') return `<div class="lead-site"><svg class="ic" aria-hidden="true"><use href="#i-search"/></svg>Google: Betrieb nicht gefunden – bitte selbst prüfen</div>`;
+    if (l.checked) return `<div class="lead-site ok"><svg class="ic" aria-hidden="true"><use href="#i-check"/></svg>Website-Check: keine Ortsdomain gefunden</div>`;
+    return '';
+  }
+
   function actionsHtml(l) {
+    if (l.state === 'website') {
+      return `<a class="mini" href="${esc(l.siteUrl ? siteHref(l) : checkUrl(l))}" target="_blank" rel="noopener noreferrer"><svg class="ic" aria-hidden="true"><use href="#i-ext"/></svg>${l.siteUrl ? 'Seite öffnen' : 'Prüfen'}</a>
+      <button type="button" class="mini" data-act="lead-confirm" data-id="${esc(l.id)}" title="Die Seite gehört nicht zum Betrieb – wieder als Lead führen"><svg class="ic" aria-hidden="true"><use href="#i-check"/></svg>Doch keine Website</button>
+      <button type="button" class="mini" data-act="lead-state" data-id="${esc(l.id)}" data-state="verworfen"><svg class="ic" aria-hidden="true"><use href="#i-x"/></svg>Verwerfen</button>`;
+    }
     const btn = (st, label, icon) =>
       `<button type="button" class="mini${l.state === st ? ' on' : ''}" data-act="lead-state" data-id="${esc(l.id)}" data-state="${st}" aria-pressed="${l.state === st}">${icon ? `<svg class="ic" aria-hidden="true"><use href="#${icon}"/></svg>` : ''}${label}</button>`;
-    return `<a class="mini" href="${esc(checkUrl(l))}" target="_blank" rel="noopener noreferrer" title="Per Websuche prüfen, ob es doch eine Seite gibt"><svg class="ic" aria-hidden="true"><use href="#i-ext"/></svg>Prüfen</a>
+    return `<a class="mini" href="${esc(checkUrl(l))}" target="_blank" rel="noopener noreferrer" title="Google-Maps-Eintrag öffnen: zeigt Website, Telefon und Öffnungszeiten"><svg class="ic" aria-hidden="true"><use href="#i-ext"/></svg>Prüfen</a>
       ${btn('vorgemerkt', 'Vormerken', 'i-star')}
       ${btn('kontaktiert', 'Kontaktiert', 'i-check')}
       ${btn('verworfen', 'Verwerfen', 'i-x')}
@@ -370,6 +479,7 @@
       <h3 class="pop-title">${esc(l.name)}</h3>
       ${l.addr ? `<p class="pop-line">${esc(l.addr)}</p>` : ''}
       <div class="lead-contact">${contactHtml(l)}</div>
+      ${siteInfoHtml(l)}
       <div class="pop-actions">${actionsHtml(l)}</div>
       ${osmUrl(l) ? `<p class="pop-foot"><a href="${esc(osmUrl(l))}" target="_blank" rel="noopener noreferrer">In OpenStreetMap ansehen ↗</a></p>` : '<p class="pop-foot">Eigener Eintrag</p>'}
     </div>`;
@@ -383,6 +493,7 @@
         ${l.addr ? `<div class="lead-addr">${esc(l.addr)}</div>` : ''}
       </div>
       <div class="lead-contact">${contactHtml(l)}</div>
+      ${siteInfoHtml(l)}
       <div class="lead-actions">${actionsHtml(l)}</div>
     </li>`;
   }
@@ -390,20 +501,25 @@
   function renderList() {
     if (!map) return;
     const b = map.getBounds(), c = map.getCenter();
-    const inView = Object.values(store.leads).filter(l => passesCat(l) && b.contains([l.lat, l.lng]));
+    const visible = Object.values(store.leads).filter(l => passesCat(l) && b.contains([l.lat, l.lng]));
     const counts = {};
-    STATE_FILTERS.forEach(f => { counts[f.key] = inView.filter(l => f.states.includes(l.state)).length; });
+    STATE_FILTERS.forEach(f => { counts[f.key] = visible.filter(l => statesOf(f).includes(l.state)).length; });
+    const hiddenSites = visible.filter(l => l.state === 'website').length;
+    $('#siteCount').textContent = hiddenSites ? `(${hiddenSites})` : '';
 
     $('#stateSeg').innerHTML = STATE_FILTERS.map(f =>
       `<button type="button" data-filter="${f.key}" aria-pressed="${prefs.stateFilter === f.key}">${f.label} <span class="n">${counts[f.key]}</span></button>`
     ).join('');
 
-    const items = inView.filter(passesState)
+    const items = visible.filter(passesState)
       .map(l => ({ l, d: distance(c.lat, c.lng, l.lat, l.lng) }))
-      .sort((a, b2) => a.d - b2.d)
+      .sort((a, b2) => (b2.l.gcheck === 'keine') - (a.l.gcheck === 'keine') || a.d - b2.d)
       .map(x => x.l);
 
-    $('#listCount').textContent = items.length ? `${items.length} im Ausschnitt` : '';
+    updateGButton();
+    $('#listCount').textContent = items.length
+      ? `${items.length} im Ausschnitt` + (hiddenSites && !prefs.showSites ? ` · ${hiddenSites} mit Website ausgeblendet` : '')
+      : (hiddenSites && !prefs.showSites ? `${hiddenSites} mit Website ausgeblendet` : '');
     const list = $('#leadList');
     if (!items.length) {
       const total = Object.keys(store.leads).length;
@@ -416,6 +532,67 @@
     list.innerHTML = shown.map(leadItemHtml).join('') +
       (items.length > shown.length
         ? `<li class="list-more"><button type="button" class="btn" data-act="lead-more">Weitere ${items.length - shown.length} anzeigen</button></li>` : '');
+  }
+
+  /* ---------- Google-Prüfung ---------- */
+  const PLACES_MAX = 100;
+
+  function gEligible() {
+    const c = map.getCenter();
+    return inView()
+      .filter(l => l.state === 'neu' && !l.gcheck)
+      .map(l => ({ id: l.id, d: distance(c.lat, c.lng, l.lat, l.lng) }))
+      .sort((a, b) => a.d - b.d)
+      .map(x => x.id);
+  }
+
+  function updateGButton() {
+    const btn = $('#gRun');
+    if (!btn || !map) return;
+    const hasKey = !!store.getGoogleKey();
+    const n = gEligible().length;
+    btn.disabled = !hasKey || gRunning || scanning || !n;
+    btn.textContent = gRunning ? 'Google-Prüfung läuft …'
+      : !hasKey ? 'Erst API-Schlüssel eintragen'
+      : n ? `${Math.min(n, PLACES_MAX)} von ${n} Betrieben mit Google prüfen`
+      : 'Alles im Ausschnitt ist geprüft';
+  }
+
+  async function runPlaces() {
+    if (gRunning || scanning) return;
+    const ids = gEligible().slice(0, PLACES_MAX);
+    if (!ids.length) return;
+    const ok = await WF.ui.confirm(
+      `${ids.length} Anfragen an die Google Places API senden? Google rechnet sie über das Konto deines API-Schlüssels ab (üblich ist ein kleines kostenloses Monatskontingent, danach kostet jede Anfrage Geld). Du kannst jederzeit abbrechen.`,
+      { title: 'Mit Google prüfen', ok: 'Prüfung starten' });
+    if (!ok) return;
+
+    gRunning = true;
+    gCtrl = new AbortController();
+    $('#checkCancel').hidden = false;
+    setScanning(true, 'Google-Prüfung …');
+    updateGButton();
+    try {
+      const r = await WF.places.run(ids, {
+        signal: gCtrl.signal,
+        onTick: (st, saved) => {
+          setStatus(`Google-Prüfung … ${st.done} von ${st.total} · ${st.website} haben eine Website · ${st.keine} bestätigt ohne`);
+          if (saved) { refreshMarkers(); renderList(); }
+        }
+      });
+      const bits = [`${r.done} geprüft`, `${r.keine} bestätigt ohne Website`, `${r.website} haben eine Website`];
+      if (r.geschlossen) bits.push(`${r.geschlossen} geschlossen`);
+      if (r.nicht) bits.push(`${r.nicht} bei Google nicht gefunden`);
+      if (r.error) setStatus('Google-Prüfung gestoppt: ' + r.error, 'bad');
+      else setStatus('Google-Prüfung: ' + bits.join(' · ') + (r.aborted ? ' · abgebrochen' : '') + '.', r.aborted ? 'warn' : 'ok');
+    } catch (e) {
+      setStatus(e.message || String(e), 'bad');
+    } finally {
+      gRunning = false; gCtrl = null;
+      $('#checkCancel').hidden = true;
+      setScanning(false);
+      updateGButton();
+    }
   }
 
   /* ---------- Manuell eintragen ---------- */
@@ -463,6 +640,11 @@
       store.setLeadState(id, next);
       const pm = markers.get(id), pop = pm && pm.getPopup();
       if (pop && pop.isOpen()) pop.update();
+    } else if (act === 'lead-confirm') {
+      if (!store.leads[id]) return;
+      store.patchLead(id, { state: 'neu', stateAt: '', confirmed: true });
+      store.commitLeads();
+      toast('Wieder als Lead geführt.');
     } else if (act === 'lead-order') {
       const l = store.leads[id];
       if (!l) return;
@@ -513,6 +695,20 @@
     const noChains = $('#noChains');
     noChains.checked = !!prefs.noChains;
     noChains.addEventListener('change', () => { prefs.noChains = noChains.checked; savePrefs(); });
+
+    const showSites = $('#showSites');
+    showSites.checked = !!prefs.showSites;
+    showSites.addEventListener('change', () => { prefs.showSites = showSites.checked; savePrefs(); refreshMarkers(); renderList(); });
+    $('#checkCancel').addEventListener('click', () => { if (checkCtrl) checkCtrl.abort(); if (gCtrl) gCtrl.abort(); });
+
+    // Google-Prüfung (optional)
+    const gKey = $('#gKey'), gRemember = $('#gRemember');
+    gKey.value = store.getGoogleKey();
+    gRemember.checked = store.googleKeyRemembered();
+    const saveKey = () => { store.setGoogleKey(gKey.value, gRemember.checked); updateGButton(); };
+    gKey.addEventListener('input', saveKey);
+    gRemember.addEventListener('change', saveKey);
+    $('#gRun').addEventListener('click', runPlaces);
 
     const showOrders = $('#showOrders');
     showOrders.checked = !!prefs.showOrders;
@@ -571,6 +767,7 @@
     refreshOrders();
     renderList();
     updateTooBig();
+    updateGButton();
   }
 
   function onShow() {
