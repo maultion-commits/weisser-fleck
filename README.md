@@ -6,6 +6,10 @@ Internes Planungswerkzeug für ein Website-Erstell-Business. Reines HTML/CSS/JS,
 - **Aufträge:** Board (Drag & Drop) und Liste mit Status von *Anfrage* bis *Abgeschlossen/Bezahlt*, Preis, Deadline, Notizen, Verlauf und Kennzahlen. Aufträge mit Position erscheinen als Rauten auf der Karte.
 - **GitHub:** veröffentlicht die Aufträge als `data/auftraege.json` (+ lesbare `data/AUFTRAEGE.md` ohne Kontaktdaten) per GitHub-API in ein Repository deiner Wahl. Mit „Von GitHub laden“ lassen sich Daten auf einem zweiten Gerät zusammenführen.
 
+## Online
+
+Live unter <https://maultion-commits.github.io/weisser-fleck/> (GitHub Pages, Branch `main`, Ordner `/`). Jede Änderung auf `main` wird automatisch neu veröffentlicht. Die Seite enthält keine Daten – Aufträge liegen im Browser des jeweiligen Geräts bzw. in deinem GitHub-Repository.
+
 ## Starten
 
 ```bash
