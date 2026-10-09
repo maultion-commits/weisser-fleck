@@ -81,7 +81,8 @@
     const city = tokens(lead.city).filter(t => !GENERIC.has(t)).join('');
     if (!all.length || city.length < 3) return [];
     const distinct = all.filter(t => !GENERIC.has(t));
-    if (!distinct.length) return [];   // reiner Branchenname („Der Friseur“) → „friseur-jena.de“ ist meist eine Parkseite
+    // reiner Branchenname („Der Friseur“) oder Branche + Ort („Eiscafe Stadtroda“) → die Domain gehört der Stadt bzw. ist geparkt
+    if (!distinct.filter(t => t !== city).length) return [];
     const out = new Set();
     const add = s => { if (s.length >= 6 && s.length <= 45) out.add(s + '.de'); };
     const variants = [all];
